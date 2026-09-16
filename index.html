@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rat Dash - Flood & Modes</title>
+    <style>
+        body {
+            margin: 0; padding: 0;
+            background-color: #0b0c10; display: flex; flex-direction: column;
+            align-items: center; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #c5c6c7; overflow: hidden;
+        }
+        h1 { margin: 10px 0 5px 0; text-shadow: 2px 2px 4px #000; color: #66fcf1; }
+        
+        #game-container {
+            position: relative;
+            width: 800px; height: 400px;
+            box-shadow: 0 0 30px rgba(0,0,0,0.9);
+            border: 4px solid #1f2833; border-radius: 8px;
+        }
+        canvas {
+            display: block; width: 100%; height: 100%;
+            background: linear-gradient(to bottom, #0b0c10, #1f2833);
+        }
+
+        /* UI Overlays */
+        .overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(11, 12, 16, 0.95);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 10; display: none; /* Hidden by default */
+        }
+        .overlay h2 { color: #66fcf1; font-size: 36px; margin-bottom: 20px; text-shadow: 0 0 10px #45a29e; }
+        .btn {
+            background: #1f2833; color: #66fcf1;
+            border: 2px solid #45a29e; border-radius: 8px;
+            padding: 12px 30px; margin: 8px; font-size: 18px; font-weight: bold;
+            cursor: pointer; transition: 0.2s; min-width: 200px;
+        }
+        .btn:hover:not(:disabled) { background: #45a29e; color: #fff; box-shadow: 0 0 15px #45a29e; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; border-color: #555; color: #777; }
+        .top-bar {
+            position: absolute; top: 10px; right: 10px; font-size: 20px;
+            font-weight: bold; color: #f1c40f; text-shadow: 1px 1px 2px #000; z-index: 20;
+        }
+
+        /* Shop & Inv Grids */
+        .grid { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; max-width: 760px; max-height: 280px; overflow-y: auto; padding: 5px; }
+        .card {
+            background: #1f2833; border: 2px solid #333; border-radius: 8px;
+            padding: 12px; text-align: center; width: 160px;
+        }
+        .card h3 { color: #fff; margin: 0 0 6px 0; font-size: 16px; }
+        .card p { font-size: 11px; color: #aaa; margin-bottom: 10px; min-height: 32px; line-height: 1.2; }
+        .card-icon { width: 40px; height: 40px; margin: 0 auto 8px auto; border-radius: 50%; }
+        
+        .instructions {
+            margin-top: 10px; text-align: center; background: #1f2833;
+            padding: 10px 20px; border-radius: 8px; font-size: 13px; line-height: 1.4;
+        }
+        kbd { background: #45a29e; color: white; padding: 1px 6px; border-radius: 4px; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <!-- ========================================== -->
+    <!-- REPLACE THE src="" BELOW WITH YOUR AUDIO LINK -->
+    <!-- ========================================== -->
+    <audio id="bg-music" src="YOUR_MUSIC_LINK_HERE.mp3" loop></audio>
+
+    <h1>Rat Dash</h1>
+    <div class="top-bar">🧀 Coins: <span id="coin-display">0</span></div>
+
+    <div id="game-container">
+        <canvas id="gameCanvas" width="800" height="400"></canvas>
+        
+        <!-- MAIN MENU -->
+        <div id="menu-screen" class="overlay" style="display: flex;">
+            <h2>RAT DASH</h2>
+            <button class="btn" onclick="startGame()">Play Game</button>
+            <button class="btn" onclick="showScreen('modes-screen')">Game Modes</button>
+            <button class="btn" onclick="showScreen('shop-screen')">Shop</button>
+            <button class="btn" onclick="showScreen('inventory-screen')">Inventory</button>
+        </div>
+
+        <!-- MODES MENU -->
+        <div id="modes-screen" class="overlay">
+            <h2>Game Modes</h2>
+            <div class="grid">
+                <div class="card" style="width: 250px;">
+                    <h3>Classic Mode</h3>
+                    <p>The original horizontal endless runner. Dodge traps, survive crumbling planks, and stay ahead of the camera.</p>
+                    <button class="btn" style="min-width: 120px;" onclick="setMode('CLASSIC')">Select</button>
+                </div>
+                <div class="card" style="width: 250px; border-color: #e74c3c;">
+                    <h3 style="color: #e74c3c;">Flood Mode</h3>
+                    <p>Lava is rising! Scale upwards as fast as possible across steep planks. Don't fall in!</p>
+                    <button class="btn" style="min-width: 120px;" onclick="setMode('FLOOD')">Select</button>
+                </div>
+            </div>
+            <p><strong>Current Mode: <span id="current-mode-display" style="color: #66fcf1;">CLASSIC</span></strong></p>
+            <button class="btn" style="margin-top: 15px;" onclick="showScreen('menu-screen')">Back</button>
+        </div>
+
+        <!-- SHOP -->
+        <div id="shop-screen" class="overlay">
+            <h2>Shop</h2>
+            <div class="grid" id="shop-grid"></div>
+            <button class="btn" style="margin-top: 15px;" onclick="showScreen('menu-screen')">Back</button>
+        </div>
+
+        <!-- INVENTORY -->
+        <div id="inventory-screen" class="overlay">
+            <h2>Inventory</h2>
+            <div class="grid" id="inventory-grid"></div>
+            <button class="btn" style="margin-top: 15px;" onclick="showScreen('menu-screen')">Back</button>
+        </div>
+    </div>
+    
+    <div class="instructions">
+        Move: <kbd>A</kbd> / <kbd>D</kbd> &nbsp;|&nbsp; Jump: <kbd>W</kbd> / <kbd>SPACE</kbd> &nbsp;|&nbsp; Ability: <kbd>E</kbd><br>
+        Earn 5 Cheese Coins every 10 seconds alive!
+    </div>
+
+<script>
+    // --- AUDIO SYSTEM ---
+    const bgMusic = document.getElementById('bg-music');
+    
+    // Play music on first user click anywhere (to bypass browser autoplay restrictions)
+    window.addEventListener('click', () => {
+        if (bgMusic.paused && gameState !== 'GAMEOVER') {
+            bgMusic.play().catch(e => console.log("Waiting for user interaction to play audio."));
+        }
+    }, { once: true });
+
+    function playMusic() {
+        if (bgMusic.paused) {
+            bgMusic.play().catch(e => console.log("Audio play blocked."));
+        }
+    }
+
+    function stopMusic() {
+        bgMusic.pause();
+        bgMusic.currentTime = 0; // Rewind the song for next time
+    }
+
+    // --- DATA & SAVING ---
+    const RAT_CLASSES = {
+        'BASIC': { id: 'BASIC', name: 'Basic Rat', cost: 0, color: '#6e6e6e', skin: '#e6a8a8', dark: '#545454', desc: 'A normal rat. Reliable.' },
+        'DASHING': { id: 'DASHING', name: 'Dashing Rat', cost: 50, color: '#b0b0b0', skin: '#d9d9d9', dark: '#808080', desc: 'Press E to Dash (10s CD)' },
+        'GLIDING': { id: 'GLIDING', name: 'Gliding Rat', cost: 50, color: '#ffffff', skin: '#ffcccc', dark: '#cccccc', desc: '25% chance to deploy a glider on fall' },
+        'ROBOT': { id: 'ROBOT', name: 'Robot Rat', cost: 75, color: '#95a5a6', skin: '#f1c40f', dark: '#2c3e50', desc: 'Immune to traps. Jumps 15% higher.' },
+        'ELONGATED': { id: 'ELONGATED', name: 'Elongated Rat', cost: 75, color: '#c49a6c', skin: '#eacda3', dark: '#8c6239', desc: '+10% speed, +10% jump, half-dash on E (10s CD)' },
+        'SKINNY': { id: 'SKINNY', name: 'Skinny Rat', cost: 75, color: '#f5f5dc', skin: '#fff8dc', dark: '#d2b48c', desc: 'Ignores crumbling, tilting, and rope movement' }
+    };
+
+    let playerData = {
+        coins: 0,
+        unlockedRats: ['BASIC'],
+        equippedRat: 'BASIC'
+    };
+
+    let selectedMode = 'CLASSIC';
+
+    function loadData() {
+        try {
+            let saved = localStorage.getItem('ratDashSave');
+            if (saved) playerData = JSON.parse(saved);
+        } catch (e) {}
+        updateCoinUI();
+    }
+
+    function saveData() {
+        try { localStorage.setItem('ratDashSave', JSON.stringify(playerData)); } catch (e) {}
+        updateCoinUI();
+    }
+
+    function updateCoinUI() {
+        document.getElementById('coin-display').innerText = playerData.coins;
+    }
+
+    // --- UI LOGIC ---
+    function showScreen(screenId) {
+        document.querySelectorAll('.overlay').forEach(el => el.style.display = 'none');
+        if (screenId) {
+            document.getElementById(screenId).style.display = 'flex';
+            if (screenId === 'shop-screen') renderShop();
+            if (screenId === 'inventory-screen') renderInventory();
+        }
+        playMusic(); // Attempt to start music when navigating menus
+    }
+
+    function setMode(mode) {
+        selectedMode = mode;
+        document.getElementById('current-mode-display').innerText = mode;
+    }
+
+    function renderShop() {
+        const grid = document.getElementById('shop-grid');
+        grid.innerHTML = '';
+        Object.values(RAT_CLASSES).forEach(ratData => {
+            const isOwned = playerData.unlockedRats.includes(ratData.id);
+            const canAfford = playerData.coins >= ratData.cost;
+            grid.innerHTML += `
+                <div class="card" style="border-color: ${ratData.color}">
+                    <div class="card-icon" style="background: ${ratData.color}; border: 3px solid ${ratData.dark}"></div>
+                    <h3>${ratData.name}</h3>
+                    <p>${ratData.desc}</p>
+                    <button class="btn" style="min-width: 90px; padding: 6px 12px; font-size: 13px; margin:0;" 
+                        ${isOwned ? 'disabled' : (canAfford ? '' : 'disabled')} 
+                        onclick="buyRat('${ratData.id}')">
+                        ${isOwned ? 'Owned' : 'Buy 🧀 ' + ratData.cost}
+                    </button>
+                </div>
+            `;
+        });
+    }
+
+    function renderInventory() {
+        const grid = document.getElementById('inventory-grid');
+        grid.innerHTML = '';
+        playerData.unlockedRats.forEach(id => {
+            const ratData = RAT_CLASSES[id];
+            const isEquipped = playerData.equippedRat === id;
+            grid.innerHTML += `
+                <div class="card" style="border-color: ${isEquipped ? '#66fcf1' : '#333'}">
+                    <div class="card-icon" style="background: ${ratData.color}; border: 3px solid ${ratData.dark}"></div>
+                    <h3>${ratData.name}</h3>
+                    <p>${ratData.desc}</p>
+                    <button class="btn" style="min-width: 90px; padding: 6px 12px; font-size: 13px; margin:0;" 
+                        ${isEquipped ? 'disabled' : ''} 
+                        onclick="equipRat('${id}')">
+                        ${isEquipped ? 'Equipped' : 'Equip'}
+                    </button>
+                </div>
+            `;
+        });
+    }
+
+    function buyRat(id) {
+        let cost = RAT_CLASSES[id].cost;
+        if (playerData.coins >= cost && !playerData.unlockedRats.includes(id)) {
+            playerData.coins -= cost;
+            playerData.unlockedRats.push(id);
+            saveData(); renderShop();
+        }
+    }
+
+    function equipRat(id) {
+        playerData.equippedRat = id;
+        saveData(); renderInventory();
+    }
+
+    // --- GAME ENGINE ---
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+
+    let scrollSpeed = 3.0;
+    const maxScrollSpeed = 6.2; 
+    let cameraX = 0, cameraY = 100;
+    let cameraZoom = 0.82; 
+    let score = 0;
+    let gameState = 'MENU'; // MENU, PLAYING, GAMEOVER
+    let planks = [];
+    
+    // Flood Mode Vars
+    let lavaY = 500;
+    let lavaSpeed = 0.4; // Starts slower now!
+
+    const keys = { a: false, d: false, w: false, ' ': false, e: false, m: false };
+    let survivalFrames = 0;
+    let cheatBuffer = "";
+
+    const rat = {
+        x: 150, y: 200, width: 50, height: 20, 
+        vx: 0, vy: 0, acceleration: 0.38, maxSpeed: 8.5,
+        friction: 0.82, airFriction: 0.98,   
+        baseJumpPower: 11.5, jumpPower: 11.5, gravity: 0.6,
+        grounded: false, facingRight: true,
+        globalTime: 0, runCycle: 0, state: 'IDLE',
+        
+        prevJumpPressed: false, doubleJumpTimer: 0, canDoubleJump: false,
+        ragdoll: false, rotation: 0, vRot: 0,
+        
+        // Abilities
+        dashCooldown: 0,
+        isGliding: false,
+        prevFalling: false
+    };
+
+    window.addEventListener("keydown", (e) => {
+        const key = e.key.toLowerCase();
+
+        if (gameState === 'MENU' || document.getElementById('menu-screen').style.display === 'flex') {
+            cheatBuffer += e.key;
+            if (cheatBuffer.length > 10) cheatBuffer = cheatBuffer.slice(-10);
+            if (cheatBuffer.includes("678610")) {
+                playerData.coins += 5000;
+                saveData();
+                cheatBuffer = "";
+                alert("🎉 Cheat Activated! +5,000 Cheese Coins 🧀");
+            }
+        }
+
+        if (keys.hasOwnProperty(key) || key === ' ') {
+            keys[key] = true;
+            if (['a','d','w',' ', 'e'].includes(key)) e.preventDefault();
+        }
+
+        if (gameState === 'GAMEOVER') {
+            if (key === ' ') startGame();
+            if (key === 'm') {
+                gameState = 'MENU';
+                showScreen('menu-screen');
+            }
+        }
+    });
+
+    window.addEventListener("keyup", (e) => {
+        const key = e.key.toLowerCase();
+        if (keys.hasOwnProperty(key) || key === ' ') keys[key] = false;
+    });
+
+    function createPlank(x, y, width, type = 'NORMAL') {
+        let p = {
+            x: x, y: y, width: width, height: 18, type: type,
+            angle: type === 'SLANTED' ? (Math.random() - 0.5) * 0.42 : 0,
+            y1: 0, y2: 0, steppedOn: false, breakTimer: 0, isBroken: false,
+            isGroundedOn: false, debris: [],
+            swingAngle: 0, swingVel: 0, yOffset: 0,
+            hasSoda: false, sodaActive: false,
+            hasTrap: false, trapTriggered: false, trapW: 60, triggerW: 24
+        };
+        
+        if (type === 'NORMAL' && width >= 200) {
+            let r = Math.random();
+            if (r < 0.20) p.hasTrap = true; 
+            else if (r < 0.35) { p.hasSoda = true; p.sodaActive = true; }
+        } else if (type === 'SLANTED' && width >= 150) {
+            if (Math.random() < 0.15) { p.hasSoda = true; p.sodaActive = true; }
+        }
+
+        updatePlankEndpoints(p);
+        return p;
+    }
+
+    function updatePlankEndpoints(p) {
+        let halfW = p.width / 2;
+        p.y1 = (p.y + p.yOffset) - halfW * Math.sin(p.angle);
+        p.y2 = (p.y + p.yOffset) + halfW * Math.sin(p.angle);
+    }
+
+    function triggerGameOver() {
+        gameState = 'GAMEOVER';
+        stopMusic();
+    }
+
+    function startGame() {
+        showScreen(null);
+        playMusic(); // Play music when the game begins
+
+        cameraX = 0; cameraY = 100;
+        score = 0; scrollSpeed = 3.0; survivalFrames = 0;
+        lavaY = selectedMode === 'FLOOD' ? 380 : 9999;
+        lavaSpeed = 0.4; // Starts slow in flood mode
+        
+        rat.x = 150; rat.y = 200; rat.vx = 0; rat.vy = 0;
+        rat.state = 'IDLE'; rat.ragdoll = false; rat.rotation = 0; rat.vRot = 0;
+        rat.doubleJumpTimer = 0; rat.canDoubleJump = false;
+        rat.dashCooldown = 0; rat.isGliding = false; rat.prevFalling = false;
+        
+        const equipped = playerData.equippedRat;
+        
+        // Slightly better jump for basic rat (Buffed to 1.08x jump power)
+        if (equipped === 'ROBOT') rat.jumpPower = rat.baseJumpPower * 1.15;
+        else if (equipped === 'ELONGATED') rat.jumpPower = rat.baseJumpPower * 1.10;
+        else if (equipped === 'BASIC') rat.jumpPower = rat.baseJumpPower * 1.08; 
+        else rat.jumpPower = rat.baseJumpPower;
+
+        if (equipped === 'ELONGATED') {
+            rat.maxSpeed = 8.5 * 1.10; rat.acceleration = 0.38 * 1.10;
+        } else {
+            rat.maxSpeed = 8.5; rat.acceleration = 0.38;
+        }
+
+        planks = [
+            createPlank(50, 320, 600, 'NORMAL'),
+            createPlank(700, 260, 200, 'SLANTED'),
+            createPlank(970, 240, 220, 'SWINGING')
+        ];
+        
+        gameState = 'PLAYING';
+    }
+
+    function update() {
+        if (gameState !== 'PLAYING') return;
+
+        survivalFrames++;
+        if (survivalFrames % 600 === 0) {
+            playerData.coins += 5;
+            saveData();
+        }
+
+        // Camera Logic
+        if (selectedMode === 'CLASSIC') {
+            cameraX += scrollSpeed;
+            if (scrollSpeed < maxScrollSpeed && !rat.ragdoll) scrollSpeed += 0.0008;
+            score = Math.floor(cameraX / 10);
+            cameraZoom = Math.max(0.65, 0.82 - Math.min((cameraX / 12000) * 0.17, 0.17));
+            let targetCamY = rat.y - (canvas.height / cameraZoom) * 0.55;
+            cameraY += (targetCamY - cameraY) * 0.08;
+        } else if (selectedMode === 'FLOOD') {
+            score = Math.floor(Math.max(0, 320 - rat.y)); 
+            let targetCamX = rat.x - canvas.width / 2;
+            let targetCamY = rat.y - canvas.height / 2;
+            cameraX += (targetCamX - cameraX) * 0.1;
+            cameraY += (targetCamY - cameraY) * 0.1;
+            
+            // Slower Lava Logic
+            lavaY -= lavaSpeed;
+            lavaSpeed += 0.0001; // Accelerates much slower now
+            if (rat.y + rat.height > lavaY) {
+                triggerGameOver();
+            }
+        }
+
+        if (rat.doubleJumpTimer > 0) rat.doubleJumpTimer--;
+        if (rat.dashCooldown > 0) rat.dashCooldown--;
+
+        // --- PLATFORM PHYSICS ---
+        let lowestPlankY = -9999;
+        
+        for (let p of planks) {
+            if (p.y > lowestPlankY) lowestPlankY = p.y;
+
+            if (p.type === 'TILTING') {
+                if (p.isGroundedOn && playerData.equippedRat !== 'SKINNY') {
+                    let relX = (rat.x + rat.width * 0.5) - (p.x + p.width * 0.5);
+                    p.angle += (relX / (p.width * 0.5)) * 0.012;
+                    p.angle = Math.max(-0.35, Math.min(0.35, p.angle));
+                } else {
+                    p.angle *= 0.96;
+                }
+                updatePlankEndpoints(p);
+            }
+
+            if (p.type === 'SWINGING') {
+                if (p.isGroundedOn && playerData.equippedRat !== 'SKINNY') {
+                    let relX = (rat.x + rat.width * 0.5) - (p.x + p.width * 0.5);
+                    p.swingVel += (relX * 0.0001) + (rat.vx * 0.001);
+                    p.yOffset += (12 - p.yOffset) * 0.1;
+                } else { p.yOffset *= 0.9; }
+                p.swingVel -= p.swingAngle * 0.04; 
+                p.swingVel *= 0.95; 
+                p.swingAngle += p.swingVel; p.angle = p.swingAngle;
+                updatePlankEndpoints(p);
+            }
+
+            if (p.type === 'CRUMBLING' && p.steppedOn && !p.isBroken) {
+                if (playerData.equippedRat !== 'SKINNY') {
+                    p.breakTimer++;
+                    if (p.breakTimer > 55) { 
+                        p.isBroken = true;
+                        let numChunks = 4; let chunkW = p.width / numChunks;
+                        for (let c = 0; c < numChunks; c++) {
+                            p.debris.push({
+                                x: p.x + c * chunkW + chunkW / 2, y: p.y,
+                                w: chunkW - 2, h: p.height,
+                                vx: (Math.random() - 0.5) * 3, vy: Math.random() * -2 - 1,
+                                rot: p.angle, vrot: (Math.random() - 0.5) * 0.2
+                            });
+                        }
+                    }
+                }
+            }
+
+            if (p.isBroken) {
+                for (let d of p.debris) {
+                    d.x += d.vx; d.y += d.vy;
+                    d.vy += 0.5; d.rot += d.vrot;
+                }
+            }
+        }
+
+        // --- COLLISION DETECTION ---
+        rat.grounded = false;
+        let standingOn = null;
+        let ratFeetX = rat.x + rat.width * 0.5;
+        let prevFeetY = (rat.y + rat.height) - Math.max(0, rat.vy);
+        let currFeetY = rat.y + rat.height;
+
+        if (!rat.ragdoll) {
+            for (let i = 0; i < planks.length; i++) {
+                let p = planks[i];
+                p.isGroundedOn = false;
+                if (p.isBroken) continue;
+
+                let isHit = false;
+                let ySurf = 0;
+                let t = Math.max(0, Math.min(1, (ratFeetX - p.x) / p.width));
+
+                if (ratFeetX >= p.x - 5 && ratFeetX <= p.x + p.width + 5) {
+                    ySurf = p.y1 + t * (p.y2 - p.y1);
+                    if (rat.vy >= 0 && prevFeetY <= ySurf + 15 && currFeetY >= ySurf - 15) isHit = true;
+                }
+
+                if (p.hasSoda && p.sodaActive) {
+                    let sX = p.x + p.width/2, sY = p.y - 15;
+                    if (Math.hypot((rat.x + 25) - sX, (rat.y + 10) - sY) < 40) {
+                        p.sodaActive = false; rat.doubleJumpTimer = 20 * 60;
+                    }
+                }
+
+                if (p.hasTrap && !p.trapTriggered && isHit) {
+                    let cx = p.x + p.width/2;
+                    if (ratFeetX > cx - p.triggerW/2 && ratFeetX < cx + p.triggerW/2) {
+                        p.trapTriggered = true;
+                        if (playerData.equippedRat !== 'ROBOT') {
+                            rat.ragdoll = true;
+                            rat.vy = -16;
+                            rat.vx = (Math.random() - 0.5) * 8 + scrollSpeed; 
+                            rat.vRot = (Math.random() > 0.5 ? 1 : -1) * 0.4;
+                            rat.state = 'RAGDOLL';
+                            isHit = false; 
+                        }
+                    }
+                }
+
+                if (isHit && !rat.ragdoll) {
+                    if (p.type === 'BOUNCY') {
+                        rat.vy = -rat.jumpPower * 1.2; 
+                        p.yOffset = 8; 
+                        rat.isGliding = false;
+                    } else {
+                        rat.grounded = true;
+                        rat.y = ySurf - rat.height;
+                        rat.vy = 0;
+                        p.steppedOn = true;
+                        p.isGroundedOn = true;
+                        standingOn = p;
+                        rat.canDoubleJump = true; 
+                        rat.isGliding = false;
+                    }
+                }
+                if (p.type === 'BOUNCY') p.yOffset *= 0.8;
+            }
+        }
+
+        // --- RAT MOVEMENT & ABILITIES ---
+        if (rat.ragdoll) {
+            rat.vy += rat.gravity; rat.x += rat.vx; rat.y += rat.vy; rat.rotation += rat.vRot;
+        } else {
+            // Rebuilt perfectly from the crash!
+            if (keys['e'] && rat.dashCooldown <= 0) {
+                if (playerData.equippedRat === 'DASHING') {
+                    rat.vx = rat.facingRight ? 18 : -18;
+                    rat.dashCooldown = 600; 
+                } else if (playerData.equippedRat === 'ELONGATED') {
+                    rat.vx = rat.facingRight ? 9 : -9; 
+                    rat.dashCooldown = 600; 
+                }
+            }
+
+            let isFallingNow = rat.vy > 0 && !rat.grounded;
+            if (playerData.equippedRat === 'GLIDING' && isFallingNow && !rat.prevFalling) {
+                if (Math.random() < 0.25) rat.isGliding = true;
+            }
+            rat.prevFalling = isFallingNow;
+
+            let currentFriction = rat.grounded ? rat.friction : rat.airFriction;
+            if (standingOn && standingOn.type === 'SLIPPERY') currentFriction = 0.94; 
+
+            if (keys['a']) { rat.vx -= rat.acceleration; rat.facingRight = false; }
+            if (keys['d']) { rat.vx += rat.acceleration; rat.facingRight = true; }
+
+            if (!keys['a'] && !keys['d']) rat.vx *= currentFriction;
+            else rat.vx *= (currentFriction > 0.9) ? 0.96 : 0.95; 
+
+            if (rat.vx > rat.maxSpeed && rat.dashCooldown < 580) rat.vx = rat.maxSpeed;
+            if (rat.vx < -rat.maxSpeed && rat.dashCooldown < 580) rat.vx = -rat.maxSpeed;
+
+            let jumpPressed = (keys['w'] || keys[' ']);
+            if (jumpPressed && !rat.prevJumpPressed) {
+                if (rat.grounded) {
+                    let jumpMult = (standingOn && standingOn.type === 'SWINGING') ? 1.25 : 1.0;
+                    rat.vy = -(rat.jumpPower * jumpMult);
+                    rat.grounded = false;
+                    rat.canDoubleJump = true;
+                } else if (rat.doubleJumpTimer > 0 && rat.canDoubleJump) {
+                    rat.vy = -rat.jumpPower * 0.95;
+                    rat.canDoubleJump = false;
+                    rat.isGliding = false; 
+                }
+            }
+            rat.prevJumpPressed = jumpPressed;
+
+            if (rat.isGliding) rat.vy = Math.min(rat.vy + 0.08, 1.8);
+            else rat.vy += rat.gravity;
+            
+            rat.x += rat.vx; rat.y += rat.vy;
+
+            if (selectedMode === 'CLASSIC' && rat.x < cameraX + 10) { 
+                rat.x = cameraX + 10; 
+                if (rat.vx < 0) rat.vx = 0; 
+            }
+
+            rat.globalTime += 0.05; let absVx = Math.abs(rat.vx);
+            if (!rat.grounded) rat.state = rat.vy < 0 ? 'JUMP' : 'FALL'; 
+            else rat.state = absVx < 0.5 ? 'IDLE' : (absVx < 5.0 ? 'WALK' : 'RUN');
+            
+            if (rat.state === 'WALK' || rat.state === 'RUN') rat.runCycle += absVx * 0.06; 
+            else rat.runCycle += (0 - (rat.runCycle % (Math.PI * 2))) * 0.1;
+            rat.rotation = 0; 
+        }
+
+        // --- WORLD GENERATION (No Wall Planks) ---
+        let visibleWidthWorld = canvas.width / cameraZoom;
+        let lastPlank = planks[planks.length - 1];
+
+        if (selectedMode === 'CLASSIC') {
+            if (lastPlank.x + lastPlank.width < cameraX + visibleWidthWorld + 400) {
+                let gapX = Math.random() * (180 - 70) + 70;
+                let newX = lastPlank.x + lastPlank.width + gapX;
+                let newY = Math.random() * ((lastPlank.y + 140) - (lastPlank.y - 110)) + (lastPlank.y - 110);
+                let newWidth = Math.random() * 150 + 150;
+                
+                let r = Math.random();
+                let type = 'NORMAL';
+                // Adjusted generation table, removed WALL
+                if (r < 0.35) type = 'NORMAL';
+                else if (r < 0.48) type = 'SLANTED';
+                else if (r < 0.60) type = 'TILTING';
+                else if (r < 0.72) type = 'CRUMBLING';
+                else if (r < 0.85) type = 'SLIPPERY';
+                else if (r < 0.95) type = 'SWINGING';
+                else type = 'BOUNCY';
+
+                planks.push(createPlank(newX, newY, newWidth, type));
+            }
+            if (planks[0].x + planks[0].width < cameraX - 300) planks.shift();
+            if (rat.y > lowestPlankY + 300 || rat.x + rat.width < cameraX) triggerGameOver();
+
+        } else if (selectedMode === 'FLOOD') {
+            if (lastPlank.y > rat.y - visibleWidthWorld) {
+                let gapX = Math.random() * 200 - 100; 
+                let newX = lastPlank.x + (lastPlank.width/2) + gapX;
+                let newY = lastPlank.y - (Math.random() * 100 + 70); 
+                let newWidth = Math.random() * 100 + 120;
+                
+                let r = Math.random();
+                let type = 'NORMAL';
+                // Adjusted generation table, removed WALL
+                if (r < 0.35) type = 'NORMAL';
+                else if (r < 0.55) type = 'SLANTED';
+                else if (r < 0.70) type = 'CRUMBLING';
+                else if (r < 0.85) type = 'SLIPPERY';
+                else type = 'BOUNCY';
+
+                planks.push(createPlank(newX, newY, newWidth, type));
+            }
+            if (planks[0].y > lavaY + 300) planks.shift(); 
+        }
+    }
+
+    function drawRat() {
+        ctx.save();
+        ctx.translate(rat.x + 25, rat.y + 10);
+        if (!rat.facingRight && !rat.ragdoll) ctx.scale(-1, 1);
+
+        const colors = RAT_CLASSES[playerData.equippedRat];
+        const furColor = colors.color;      
+        const darkFurColor = colors.dark;
+        const skinColor = colors.skin;     
+
+        let bY = 0, bStretch = 1, bSquash = 1, bRot = rat.rotation;
+        let sF1 = 0, sF2 = 0, sB1 = 0, sB2 = 0, tailAngle = 0;
+
+        switch(rat.state) {
+            case 'IDLE':
+                bSquash = 1 + Math.sin(rat.globalTime * 2) * 0.05; bStretch = 1 - Math.sin(rat.globalTime * 2) * 0.02;
+                tailAngle = Math.sin(rat.globalTime) * 0.15; break;
+            case 'WALK':
+                bY = Math.abs(Math.sin(rat.runCycle)) * 2;
+                sF1 = Math.sin(rat.runCycle) * 8; sF2 = Math.cos(rat.runCycle) * 8;
+                sB1 = Math.cos(rat.runCycle) * 8; sB2 = Math.sin(rat.runCycle) * 8;
+                tailAngle = Math.sin(rat.runCycle) * 0.2; break;
+            case 'RUN':
+                bY = Math.abs(Math.sin(rat.runCycle)) * 3 + 1; bStretch = 1.05; bSquash = 0.9;
+                sF1 = Math.sin(rat.runCycle) * 16; sF2 = Math.cos(rat.runCycle) * 16;
+                sB1 = Math.cos(rat.runCycle) * 16; sB2 = Math.sin(rat.runCycle) * 16;
+                tailAngle = 0.2 + Math.sin(rat.runCycle * 2) * 0.1; break;
+            case 'JUMP':
+                bRot = -0.25; sF1 = -12; sF2 = -8; sB1 = 10; sB2 = 14; tailAngle = -0.4; break;
+            case 'FALL':
+                bRot = 0.2; sF1 = 10; sF2 = 5; sB1 = -10; sB2 = -5; tailAngle = 0.3; break;
+            case 'RAGDOLL':
+                sF1 = 15; sF2 = -15; sB1 = -20; sB2 = 20; tailAngle = Math.sin(rat.globalTime*5); break;
+        }
+
+        ctx.translate(0, -bY);
+        ctx.rotate(bRot);
+
+        if (rat.isGliding) {
+            ctx.fillStyle = "#e74c3c";
+            ctx.beginPath(); ctx.moveTo(0, -18); ctx.lineTo(-25, -5); ctx.lineTo(25, -5); ctx.fill();
+            ctx.strokeStyle = "#bdc3c7"; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.moveTo(0, -18); ctx.lineTo(12, -9); ctx.moveTo(0, -18); ctx.lineTo(-12, -9); ctx.stroke();
+        }
+
+        if (playerData.equippedRat === 'ROBOT') {
+            ctx.strokeStyle = "#7f8c8d"; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.moveTo(20, -10); ctx.lineTo(25, -20); ctx.stroke();
+            ctx.fillStyle = "#e74c3c";
+            ctx.beginPath(); ctx.arc(25, -20, 3, 0, Math.PI*2); ctx.fill();
+        }
+
+        ctx.save(); ctx.translate(-24, 2); ctx.rotate(tailAngle);
+        ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(-20, 10, -45, 5 + Math.sin(rat.globalTime * 3) * 2);
+        ctx.strokeStyle = skinColor; ctx.lineWidth = 3.2; ctx.lineCap = "round"; ctx.stroke();
+        ctx.restore();
+
+        drawRatLeg(-10, 4, sB2, darkFurColor, skinColor, true);
+        drawRatLeg(10, 4, sF2, darkFurColor, skinColor, false);
+
+        ctx.save(); ctx.scale(bStretch, bSquash);
+        if (playerData.equippedRat === 'ROBOT') {
+            ctx.fillStyle = furColor; ctx.fillRect(-20, -12, 40, 24); 
+        } else if (playerData.equippedRat === 'ELONGATED') {
+            ctx.beginPath(); ctx.ellipse(0, 0, 32, 10, 0, 0, Math.PI * 2); ctx.fillStyle = furColor; ctx.fill(); 
+        } else if (playerData.equippedRat === 'SKINNY') {
+            ctx.beginPath(); ctx.ellipse(0, 0, 20, 8, 0, 0, Math.PI * 2); ctx.fillStyle = furColor; ctx.fill(); 
+        } else {
+            ctx.beginPath(); ctx.ellipse(0, 0, 26, 13, 0, 0, Math.PI * 2); ctx.fillStyle = furColor; ctx.fill();
+        }
+        ctx.restore();
+
+        if (playerData.equippedRat === 'ROBOT') {
+            ctx.fillStyle = furColor; ctx.fillRect(10, -12, 24, 20); 
+        } else if (playerData.equippedRat === 'ELONGATED') {
+            ctx.beginPath(); ctx.moveTo(18, -7); ctx.quadraticCurveTo(40, -5, 42, 1);   
+            ctx.quadraticCurveTo(42, 5, 38, 6); ctx.quadraticCurveTo(26, 9, 18, 8);  
+            ctx.fillStyle = furColor; ctx.fill();
+        } else if (playerData.equippedRat === 'SKINNY') {
+            ctx.beginPath(); ctx.moveTo(8, -7); ctx.quadraticCurveTo(28, -5, 30, 1);   
+            ctx.quadraticCurveTo(30, 5, 26, 6); ctx.quadraticCurveTo(16, 8, 8, 7);  
+            ctx.fillStyle = furColor; ctx.fill();
+        } else {
+            ctx.beginPath(); ctx.moveTo(12, -9); ctx.quadraticCurveTo(34, -7, 36, 1);   
+            ctx.quadraticCurveTo(36, 6, 32, 7); ctx.quadraticCurveTo(20, 11, 12, 10);  
+            ctx.fillStyle = furColor; ctx.fill();
+        }
+
+        ctx.beginPath(); ctx.arc(8, -8, 3.5, 0, Math.PI * 2); ctx.fillStyle = darkFurColor; ctx.fill();
+        ctx.beginPath(); ctx.arc(14, -7, 4.5, 0, Math.PI * 2); ctx.fillStyle = furColor; ctx.fill();
+        ctx.beginPath(); ctx.arc(14.5, -7, 2, 0, Math.PI * 2); ctx.fillStyle = skinColor; ctx.fill();
+        
+        if(rat.ragdoll) {
+            ctx.strokeStyle = "black"; ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.moveTo(20, -5); ctx.lineTo(24, -1); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(24, -5); ctx.lineTo(20, -1); ctx.stroke();
+        } else {
+            let eyeX = playerData.equippedRat === 'ELONGATED' ? 26 : (playerData.equippedRat === 'SKINNY' ? 18 : 22);
+            ctx.beginPath(); ctx.arc(eyeX, -3, 2.5, 0, Math.PI * 2); ctx.fillStyle = playerData.equippedRat === 'ROBOT' ? '#e74c3c' : "#111"; ctx.fill();
+            if(playerData.equippedRat !== 'ROBOT') { ctx.beginPath(); ctx.arc(eyeX + 0.5, -4, 0.8, 0, Math.PI * 2); ctx.fillStyle = "white"; ctx.fill(); }
+        }
+        let noseX = playerData.equippedRat === 'ELONGATED' ? 42 : (playerData.equippedRat === 'SKINNY' ? 30 : 36);
+        ctx.beginPath(); ctx.arc(noseX, 2, 2.5, 0, Math.PI * 2); ctx.fillStyle = skinColor; ctx.fill();
+
+        drawRatLeg(-14, 5, sB1, furColor, skinColor, true);
+        drawRatLeg(12, 5, sF1, furColor, skinColor, false);
+
+        ctx.restore();
+    }
+
+    function drawRatLeg(x, y, swingOffset, legColor, footColor, isHindLeg) {
+        ctx.save(); ctx.translate(x, y); ctx.beginPath(); ctx.moveTo(0, 0);
+        let kneeX = swingOffset * 0.4, kneeY = isHindLeg ? 7 : 6, footX = swingOffset, footY = 12;
+        ctx.lineTo(kneeX, kneeY); ctx.lineWidth = isHindLeg ? 6 : 4; 
+        ctx.strokeStyle = legColor; ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(kneeX, kneeY); ctx.lineTo(footX, footY); ctx.lineWidth = isHindLeg ? 3 : 2.5; ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(footX, footY); ctx.lineTo(footX + 7, footY + 1); ctx.strokeStyle = footColor; ctx.lineWidth = 2; ctx.stroke();
+        ctx.restore();
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        if (gameState === 'MENU') return; 
+        
+        ctx.save(); 
+        ctx.scale(cameraZoom, cameraZoom);
+        ctx.translate(-cameraX, -cameraY);
+
+        // --- DRAW PLANKS ---
+        for (let p of planks) {
+            let cx = p.x + p.width / 2;
+            let cy = p.y + (p.yOffset || 0);
+
+            if (p.type === 'SWINGING') {
+                ctx.strokeStyle = "#7f8c8d"; ctx.lineWidth = 2; ctx.beginPath();
+                ctx.moveTo(p.x + 20, cy); ctx.lineTo(p.x + 20 - p.angle * 100, cameraY - 100);
+                ctx.moveTo(p.x + p.width - 20, cy); ctx.lineTo(p.x + p.width - 20 - p.angle * 100, cameraY - 100);
+                ctx.stroke();
+            }
+
+            if (p.isBroken) {
+                for (let d of p.debris) {
+                    ctx.save(); ctx.translate(d.x, d.y); ctx.rotate(d.rot);
+                    ctx.fillStyle = "#3a332d"; ctx.fillRect(-d.w / 2, -d.h / 2, d.w, d.h);
+                    ctx.fillStyle = "#e74c3c"; ctx.fillRect(-d.w / 2, -d.h / 2, d.w, 2); 
+                    ctx.restore();
+                }
+                continue;
+            }
+
+            ctx.save(); ctx.translate(cx, cy); ctx.rotate(p.angle);
+            let hw = p.width / 2, hh = p.height / 2;
+
+            if (p.type === 'SLIPPERY') {
+                ctx.fillStyle = "#3498db"; ctx.fillRect(-hw, -hh, p.width, p.height);
+                ctx.fillStyle = "#aed6f1"; ctx.fillRect(-hw, -hh, p.width, 4); 
+                ctx.fillStyle = "rgba(255,255,255,0.5)"; ctx.fillRect(-hw+10, -hh+5, p.width-20, 2);
+            } else if (p.type === 'BOUNCY') {
+                ctx.fillStyle = "#27ae60"; ctx.fillRect(-hw, -hh, p.width, p.height);
+                ctx.fillStyle = "#2ecc71"; ctx.fillRect(-hw, -hh, p.width, 6 + p.yOffset); 
+                ctx.fillStyle = "#1e8449";
+                for(let i=-hw+20; i<hw-20; i+=30) { ctx.fillRect(i, -hh, 10, p.height); }
+            } else if (p.type === 'SWINGING') {
+                ctx.fillStyle = "#d35400"; ctx.fillRect(-hw, -hh, p.width, p.height);
+                ctx.fillStyle = "#e67e22"; ctx.fillRect(-hw, -hh, p.width, 4);
+                ctx.fillStyle = "#bdc3c7";
+                ctx.beginPath(); ctx.arc(-hw + 20, 0, 4, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(hw - 20, 0, 4, 0, Math.PI*2); ctx.fill();
+            } else if (p.type === 'TILTING') {
+                ctx.fillStyle = "#5b2c6f"; ctx.fillRect(-hw, -hh, p.width, p.height);
+                ctx.fillStyle = "#8e44ad"; ctx.fillRect(-hw, -hh, p.width, 4);
+            } else if (p.type === 'CRUMBLING') {
+                ctx.fillStyle = p.steppedOn ? "#4a3b32" : "#302823"; ctx.fillRect(-hw, -hh, p.width, p.height);
+                ctx.strokeStyle = p.steppedOn ? "#ff4d4d" : "#c0392b"; ctx.lineWidth = 1.5;
+                ctx.beginPath(); ctx.moveTo(-hw+20, -hh); ctx.lineTo(-hw+35, 0); ctx.lineTo(-hw+25, hh);
+                ctx.moveTo(hw-40, -hh); ctx.lineTo(hw-20, hh); ctx.stroke();
+            } else {
+                ctx.fillStyle = "#3d2b1f"; ctx.fillRect(-hw, -hh, p.width, p.height);
+                ctx.fillStyle = "#5c4033"; ctx.fillRect(-hw, -hh, p.width, 3);
+            }
+
+            if (p.hasTrap) {
+                let tw = p.trapW / 2;
+                ctx.fillStyle = "#8e6c51"; ctx.fillRect(-tw, -hh - 4, p.trapW, 4);
+                ctx.fillStyle = p.trapTriggered ? "#7a1a10" : "#e74c3c";
+                ctx.fillRect(-p.triggerW/2, -hh - 5, p.triggerW, 3);
+                ctx.strokeStyle = "#bdc3c7"; ctx.lineWidth = 2; ctx.beginPath();
+                if (p.trapTriggered) {
+                    ctx.moveTo(-tw, -hh - 4); ctx.lineTo(0, -hh - 12); ctx.lineTo(tw, -hh - 4);
+                } else {
+                    ctx.moveTo(-tw, -hh - 4); ctx.lineTo(-tw - 8, -hh - 16);
+                    ctx.moveTo(tw, -hh - 4); ctx.lineTo(tw + 8, -hh - 16);
+                }
+                ctx.stroke();
+            }
+
+            if (p.hasSoda && p.sodaActive) {
+                let hover = Math.sin(rat.globalTime * 3 + p.x) * 3; let sy = -hh - 18 + hover;
+                let grad = ctx.createLinearGradient(0, sy-8, 0, sy+8);
+                grad.addColorStop(0, "#bdc3c7"); grad.addColorStop(0.3, "#3498db");
+                grad.addColorStop(0.7, "#2980b9"); grad.addColorStop(1, "#bdc3c7");
+                ctx.fillStyle = grad; ctx.fillRect(-6, sy - 8, 12, 16);
+                ctx.fillStyle = "#ecf0f1"; ctx.fillRect(-6, sy - 9, 12, 2); ctx.fillRect(-6, sy + 7, 12, 2);
+            }
+            ctx.restore();
+
+            if (p.type === 'TILTING') {
+                ctx.fillStyle = "#8e44ad";
+                ctx.beginPath(); ctx.moveTo(cx-8, cy+18); ctx.lineTo(cx+8, cy+18); ctx.lineTo(cx, cy+8); ctx.fill();
+            }
+        }
+        
+        drawRat(); 
+
+        // Draw Lava in Flood Mode
+        if (selectedMode === 'FLOOD') {
+            let lavaBase = cameraX - 1000;
+            ctx.fillStyle = "rgba(255, 69, 0, 0.85)"; 
+            ctx.fillRect(lavaBase, lavaY, 5000, 2000); 
+            ctx.fillStyle = "#ff8c00"; 
+            ctx.fillRect(lavaBase, lavaY, 5000, 12);
+            
+            // Lava bubbles for visual detail
+            ctx.fillStyle = "#ffb347";
+            for(let i=0; i<20; i++) {
+                let bx = lavaBase + (Math.sin(rat.globalTime + i*50) * 100) + (i*200);
+                let by = lavaY + (Math.cos(rat.globalTime * 2 + i) * 6) + 4;
+                ctx.beginPath(); ctx.arc(bx, by, 4 + (i%3), 0, Math.PI*2); ctx.fill();
+            }
+        }
+        
+        ctx.restore(); 
+
+        // UI Layer
+        ctx.fillStyle = "white"; ctx.font = "bold 22px 'Segoe UI', sans-serif";
+        ctx.fillText((selectedMode === 'FLOOD' ? "Height: " : "Score: ") + score, 20, 35);
+
+        // Powerup UI
+        let uiY = 65;
+        if (rat.doubleJumpTimer > 0) {
+            let secLeft = Math.ceil(rat.doubleJumpTimer / 60);
+            ctx.fillStyle = "#3498db"; ctx.font = "bold 16px Arial"; ctx.fillText("DOUBLE JUMP: " + secLeft + "s", 20, uiY);
+            ctx.fillStyle = "#2c3e50"; ctx.fillRect(20, uiY+10, 120, 8);
+            ctx.fillStyle = "#3498db"; ctx.fillRect(20, uiY+10, (rat.doubleJumpTimer / (20 * 60)) * 120, 8);
+            uiY += 35;
+        }
+
+        if (playerData.equippedRat === 'DASHING' || playerData.equippedRat === 'ELONGATED') {
+            let label = playerData.equippedRat === 'DASHING' ? 'DASH' : 'HALF DASH';
+            ctx.fillStyle = rat.dashCooldown <= 0 ? "#2ecc71" : "#e74c3c";
+            ctx.font = "bold 16px Arial";
+            ctx.fillText(rat.dashCooldown <= 0 ? `${label} READY (E)` : `${label} COOLDOWN`, 20, uiY);
+            ctx.fillStyle = "#2c3e50"; ctx.fillRect(20, uiY+10, 120, 8);
+            ctx.fillStyle = rat.dashCooldown <= 0 ? "#2ecc71" : "#e74c3c";
+            ctx.fillRect(20, uiY+10, ((600 - rat.dashCooldown) / 600) * 120, 8);
+        }
+
+        if (gameState === 'GAMEOVER') {
+            ctx.fillStyle = "rgba(0, 0, 0, 0.85)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = "#e74c3c"; ctx.font = "bold 48px Arial"; ctx.textAlign = "center";
+            ctx.fillText("GAME OVER", canvas.width / 2, canvas.height / 2 - 20);
+            ctx.fillStyle = "white"; ctx.font = "24px Arial";
+            let scoreText = selectedMode === 'FLOOD' ? "Highest Point Climbed: " : "Final Score: ";
+            ctx.fillText(scoreText + score, canvas.width / 2, canvas.height / 2 + 30);
+            ctx.font = "18px Arial"; ctx.fillText("Press SPACE to restart", canvas.width / 2, canvas.height / 2 + 75);
+            ctx.font = "16px Arial"; ctx.fillStyle = "#aaa";
+            ctx.fillText("Press 'M' for Main Menu", canvas.width / 2, canvas.height / 2 + 105);
+            ctx.textAlign = "left"; 
+        }
+    }
+
+    function gameLoop() {
+        if (gameState === 'PLAYING' || gameState === 'GAMEOVER') {
+            update(); draw();
+        }
+        requestAnimationFrame(gameLoop);
+    }
+
+    // Init
+    loadData();
+    gameLoop();
+</script>
+</body>
+</html>
